@@ -11,9 +11,6 @@ from ultralytics import YOLO
 
 def main():
     model = YOLO('surveillance.pt')
-    i = 0
-
-    # Set video source (0 for default camera, or path to a video file)
     video_path = 0
     # Create a VideoCapture object
     cap = cv2.VideoCapture(video_path)
@@ -23,7 +20,6 @@ def main():
 
     # Loop through video frames
     while cap.isOpened():
-        i += 1
         # Read a frame
         success, frame = cap.read()
         # Resize the frame
