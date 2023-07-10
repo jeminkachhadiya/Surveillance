@@ -52,7 +52,7 @@ def getPicture(input):
         # Check if at least 0.5 seconds have passed since the last inference
         if current_time - prev_inference_time >= 0.1:
             # Run YOLOv8 inference
-            results = model(frame, verbose=False, agnostic_nms=True, confidence=0.35)
+            results = model(frame, verbose=False, agnostic_nms=True, conf=0.35)
             detections = sv.Detections.from_yolov8(results[0])
             labels = [
             f"{model.model.names[class_id]} {confidence:0.2f}"
@@ -66,10 +66,15 @@ def getPicture(input):
                 text_thickness=2,
                 text_scale=1
             )
+            
+            p = Path('dummy_path')
+            im = frame
+            im0 = frame.copy()
+            label = model.predictor.custom_results(0, results, (p, im, im0))
 
             # json response
             time_stamp = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
-            if "Civilian" in labels:
+            if "Civilian" in label:
                 response = {"command": "security", "action": "trigger", "tags":f"event={labels}", "Date-Time": time_stamp, }
             else:
                 response = {"command": "security", "action": "", "tags":f"event={labels}", "Date-Time": time_stamp,}
