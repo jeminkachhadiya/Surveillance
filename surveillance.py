@@ -16,10 +16,10 @@ def getPicture(input):
     cap = cv2.VideoCapture(input)
 
     # to save the video
-    writer= cv2.VideoWriter('webcam_yolo.mp4', 
-                            cv2.VideoWriter_fourcc(*'DIVX'), 
-                            7, 
-                            (1280, 720))
+    # writer= cv2.VideoWriter('suspicious_civilian.mp4', 
+    #                         cv2.VideoWriter_fourcc(*'DIVX'), 
+    #                         7, 
+    #                         (1280, 720))
     
     a=cap.get(cv2.CAP_PROP_BUFFERSIZE)
     cap.set(cv2.CAP_PROP_BUFFERSIZE,3)
@@ -60,11 +60,10 @@ def getPicture(input):
             ]
             # print(labels)
 
-            # customize the bounding box
-            box_annotator = sv.BoxAnnotator(
-                thickness=2,
-                text_thickness=2,
-                text_scale=1
+            annotated_frame = box_annotator.annotate(
+            scene=frame, 
+            detections=detections, 
+            labels=labels
             )
             
             p = Path('dummy_path')
@@ -74,8 +73,12 @@ def getPicture(input):
 
             # json response
             time_stamp = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+            time_stamp_name = datetime.datetime.now().strftime("%m-%d-%Y_%Hh%Mm%Ss")
             if "Civilian" in label:
                 response = {"command": "security", "action": "trigger", "tags":f"event={labels}", "Date-Time": time_stamp, }
+                # writer.write(annotated_frame)
+                cv2.imwrite(f'civilian_{time_stamp_name}.jpg', annotated_frame)
+                # cv2.imshow("Inference", frame)
             else:
                 response = {"command": "security", "action": "", "tags":f"event={labels}", "Date-Time": time_stamp,}
             # Send the JSON response
@@ -84,17 +87,10 @@ def getPicture(input):
             # Json File testing
             response_string = json.dumps(response)
             with open("test.json", "a") as f:
-                f.write(response_string)
-
-            # Custom 
-            writer.write(frame)
-            cv2.imshow("Inference", frame)
+                f.write(response_string+"\n")
 
             # Visualize results on the frame
-            for result in results:
-                annotated_frame = result.plot()
-                # Display the annotated frame using cv2.imshow
-                cv2.imshow("Inference", annotated_frame)
+            cv2.imshow("Inference", annotated_frame)
 
             # Update the previous inference time
             prev_inference_time = current_time
