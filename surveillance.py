@@ -1,22 +1,40 @@
 import json
+import threading
 import cv2
 import time
 import socket
 import datetime
-import sys
-import logging
+import supervision as sv
 from pathlib import Path
 from ultralytics import YOLO
 
 
-def main():
+def getPicture(input):
     model = YOLO('surveillance.pt')
-    video_path = 0
+
     # Create a VideoCapture object
-    cap = cv2.VideoCapture(video_path)
+    cap = cv2.VideoCapture(input)
+
+    # to save the video
+    writer= cv2.VideoWriter('webcam_yolo.mp4', 
+                            cv2.VideoWriter_fourcc(*'DIVX'), 
+                            7, 
+                            (1280, 720))
+    
+    a=cap.get(cv2.CAP_PROP_BUFFERSIZE)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE,3)
+    start_frame_number = 20
+    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame_number)
 
     # Initialize the time variable
     prev_inference_time = 0
+
+    # customize the bounding box
+    box_annotator = sv.BoxAnnotator(
+        thickness=2,
+        text_thickness=2,
+        text_scale=1
+    )
 
     # Loop through video frames
     while cap.isOpened():
@@ -34,38 +52,50 @@ def main():
         # Check if at least 0.5 seconds have passed since the last inference
         if current_time - prev_inference_time >= 0.1:
             # Run YOLOv8 inference
-            results = model(frame, verbose=False)
-            p = Path('dummy_path')
-            im = frame
-            im0 = frame.copy()
-            label = model.predictor.custom_results(0, results, (p, im, im0))
-            # print(f"****{label}*****")
+            results = model(frame, verbose=False, agnostic_nms=True, confidence=0.35)
+            detections = sv.Detections.from_yolov8(results[0])
+            labels = [
+            f"{model.model.names[class_id]} {confidence:0.2f}"
+            for _, confidence, class_id, _ in detections
+            ]
+            # print(labels)
+
+            # customize the bounding box
+            box_annotator = sv.BoxAnnotator(
+                thickness=2,
+                text_thickness=2,
+                text_scale=1
+            )
 
             # json response
             time_stamp = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
-            if "Civilian" in label:
-                response = {"command": "security", "action": "trigger", "tags":f"event={label}", "Date-Time": time_stamp, }
+            if "Civilian" in labels:
+                response = {"command": "security", "action": "trigger", "tags":f"event={labels}", "Date-Time": time_stamp, }
             else:
-                response = {"command": "security", "action": "", "tags":f"event={label}"}
+                response = {"command": "security", "action": "", "tags":f"event={labels}", "Date-Time": time_stamp,}
             # Send the JSON response
-            send_json_response(ip, port, response)
+            # send_json_response(ip, port, response)
 
-            #Json File testing
-            # response_string = json.dumps(response)
-            # with open("test_{i}.json", "w") as f:
-            #     f.write(response_string)
+            # Json File testing
+            response_string = json.dumps(response)
+            with open("test.json", "a") as f:
+                f.write(response_string)
+
+            # Custom 
+            writer.write(frame)
+            cv2.imshow("Inference", frame)
 
             # Visualize results on the frame
             for result in results:
                 annotated_frame = result.plot()
                 # Display the annotated frame using cv2.imshow
-                cv2.imshow("YOLOv8 Inference", annotated_frame)
+                cv2.imshow("Inference", annotated_frame)
 
             # Update the previous inference time
             prev_inference_time = current_time
         else:
             # Display the unannotated frame
-            cv2.imshow("YOLOv8 Inference", frame)
+            cv2.imshow("Inference", frame)
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -106,4 +136,8 @@ def send_json_response(ip, port, response):
 if __name__ == "__main__":
     ip = "10.0.1.20"
     port = 2101
-    main()
+    t1 = threading.Thread(target=getPicture, args=(0,))
+    # t2 = threading.Thread(target=getPicture, args=(rtsp1,))
+
+    t1.start()
+    # t2.start()
