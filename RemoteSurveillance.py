@@ -137,6 +137,7 @@ def send_json_response(ip, port, response):
 if __name__ == "__main__":
     ip = "10.0.1.20"
     port = 2101
+    rtsp = ""
     t1 = threading.Thread(target=getPicture, args=(0,))
     # t2 = threading.Thread(target=getPicture, args=(rtsp1,))
 
