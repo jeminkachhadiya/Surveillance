@@ -176,6 +176,40 @@ class BasePredictor:
             result.save_crop(save_dir=self.save_dir / 'crops', file_name=self.data_path.stem)
 
         return log_string
+    
+    def custom_results(self, idx, results, batch):
+        """Write inference results to a file or directory."""
+        p, im, _ = batch
+        log_string = ''
+        if len(im.shape) == 3:
+            im = im[None]  # expand for batch dim
+        if self.source_type.webcam or self.source_type.from_img or self.source_type.tensor:  # batch_size >= 1
+            log_string += f'{idx}: '
+            frame = self.dataset.count
+        else:
+            frame = getattr(self.dataset, 'frame', 0)
+        self.data_path = p
+        self.txt_path = str(self.save_dir / 'labels' / p.stem) + ('' if self.dataset.mode == 'image' else f'_{frame}')
+        log_string += '%gx%g ' % im.shape[2:]  # print string
+        result = results[idx]
+        log_string += result.verbose()
+
+        if self.args.save or self.args.show:  # Add bbox to image
+            plot_args = {
+                'line_width': self.args.line_width,
+                'boxes': self.args.boxes,
+                'conf': self.args.show_conf,
+                'labels': self.args.show_labels}
+            if not self.args.retina_masks:
+                plot_args['im_gpu'] = im[idx]
+            self.plotted_img = result.plot(**plot_args)
+        # Write
+        if self.args.save_txt:
+            result.save_txt(f'{self.txt_path}.txt', save_conf=self.args.save_conf)
+        if self.args.save_crop:
+            result.save_crop(save_dir=self.save_dir / 'crops', file_name=self.data_path.stem)
+
+        return result.verbose()
 
     def postprocess(self, preds, img, orig_imgs):
         """Post-processes predictions for an image and returns them."""
