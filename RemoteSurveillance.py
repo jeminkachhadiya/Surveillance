@@ -51,7 +51,7 @@ def getPicture(input):
         current_time = time.time()
 
         # Check if at least 0.5 seconds have passed since the last inference
-        if current_time - prev_inference_time >= 0.1:
+        if current_time - prev_inference_time >= 0.7:
             # Run YOLOv8 inference
             results = model(frame, verbose=False, agnostic_nms=True, conf=0.35)
             detections = sv.Detections.from_yolov8(results[0])
