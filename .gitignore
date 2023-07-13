@@ -155,5 +155,7 @@ weights/
 *_openvino_model/
 *_paddle_model/
 
-Google Drive
+# Google Drive
 *.ini
+# Image
+*.jpg

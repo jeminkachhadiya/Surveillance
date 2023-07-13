@@ -26,8 +26,9 @@ def getPicture(input):
     start_frame_number = 20
     cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame_number)
 
-    # Initialize the time variable
+    # Initialize the variables
     prev_inference_time = 0
+    response = ''
 
     # customize the bounding box
     box_annotator = sv.BoxAnnotator(
@@ -74,20 +75,43 @@ def getPicture(input):
             # json response
             time_stamp = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
             time_stamp_name = datetime.datetime.now().strftime("%m-%d-%Y_%Hh%Mm%Ss")
-            if "Civilian" in label:
-                response = {"command": "security", "action": "trigger", "tags":f"event={labels}", "Date-Time": time_stamp, }
+            data = ['Civilian 0.79', 'Soldier 0.55', 'Civilian 0.54', 'Soldier 0.36']
+
+            # Label format for json response
+            civilians = []
+            soldiers = []
+            for item in labels:
+                if item.startswith('Civilian'):
+                    civilians.append(float(item.split()[1]))
+                elif item.startswith('Soldier'):
+                    soldiers.append(float(item.split()[1]))
+
+            if "Civilian" in label and "Soldier" in label:
+                response = {"command": "security", "action": "trigger", 
+                            "tags":f"event=civilian&civilians={civilians}&soldiers={soldiers}",
+                            "Date-Time": time_stamp}
+                cv2.imwrite(f'civilian_soldier_{time_stamp_name}.jpg', annotated_frame)
+            elif "Civilian" in label:
+                response = {"command": "security", "action": "trigger", 
+                            "tags":f"event=civilian&civilians={civilians}",
+                            "Date-Time": time_stamp}
                 # writer.write(annotated_frame)
                 cv2.imwrite(f'civilian_{time_stamp_name}.jpg', annotated_frame)
                 # cv2.imshow("Inference", frame)
-            else:
-                response = {"command": "security", "action": "", "tags":f"event={labels}", "Date-Time": time_stamp,}
+            elif "Soldier" in label:
+                response = {"command": "security", "action": "trigger", 
+                            "tags":f"event=civilian&soldiers={soldiers}",
+                            "Date-Time": time_stamp}
+                
             # Send the JSON response
-            # send_json_response(ip, port, response)
+            # if response:
+            #     send_json_response(ip, port, response)
 
             # Json File testing
-            response_string = json.dumps(response)
-            with open("test.json", "a") as f:
-                f.write(response_string+"\n")
+            if response:
+                response_string = json.dumps(response)
+                with open("test.json", "a") as f:
+                    f.write(response_string+"\n")
 
             # Visualize results on the frame
             cv2.imshow("Inference", annotated_frame)
