@@ -13,9 +13,9 @@ import numpy as np
 
 
 def getPicture(input):
-    ip, port, rtsp, inference_path, img_inference, video_inference, results_visualization, wait_interval, \
-        conf_threshold, device = opt.ip, opt.port, opt.rtsp, opt.inference_path, opt.img_inference, \
-        opt.video_inference, opt.results_visualization, opt.wait_interval, opt.conf_threshold, opt.device
+    ip, port, source, inference_path, img_inference, video_inference, display, wait_interval, \
+        conf_threshold, device = opt.ip, opt.port, opt.source, opt.inference_path, opt.img_inference, \
+        opt.video_inference, opt.display, opt.wait_interval, opt.conf_threshold, opt.device
     model = YOLO('surveillance.pt')
 
     # Create a VideoCapture object
@@ -132,14 +132,14 @@ def getPicture(input):
                     f.write(response_string+"\n")
 
             # Visualize results on the frame
-            if results_visualization:
+            if display:
                 cv2.imshow("Inference", annotated_frame)
 
             # Update the previous inference time
             prev_inference_time = current_time
         else:
             # Display the unannotated frame
-            if results_visualization:
+            if display:
                 cv2.imshow("Inference", frame)
 
         # Break the loop if 'q' is pressed
@@ -187,16 +187,16 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--ip', type=str, default="10.0.1.20", help='ip address for json response')
     parser.add_argument('--port', type=int, default=2101, help='source in url or video file path')
-    parser.add_argument('--rtsp', type=str, default=0, help='rtsp address or 0 for webcam input')
+    parser.add_argument('--source', type=str, default=0, help='rtsp address or 0 for webcam input or path of video file')
     parser.add_argument('--inference-path', type=str, default="./", help='path location to save all the inferences')
     parser.add_argument('--img-inference', type=bool, default=False, help='Save image inferences on given inference path')
     parser.add_argument('--video-inference', type=bool, default=False, help='Save video on inferences path')
-    parser.add_argument('--results-visualization', type=bool, default=False, help='display processed frames with bounding box')
+    parser.add_argument('--display', type=bool, default=False, help='display processed frames with bounding box')
     parser.add_argument('--wait-interval', type=float, default=0.1, help="buffer period for frames")
     parser.add_argument('--conf-threshold', type=float, default=0.35, help="confidence threshold for object detection")
     parser.add_argument('--device', default=0, help="0/1/2/3 for GPU, 'cpu' for CPU")
     opt = parser.parse_args()
-    t1 = threading.Thread(target=getPicture, args=(opt.rtsp,))
-    # t2 = threading.Thread(target=getPicture, args=(rtsp1,))
+    t1 = threading.Thread(target=getPicture, args=(opt.source,))
+    # t2 = threading.Thread(target=getPicture, args=(source1,))
     t1.start()
     # t2.start()
