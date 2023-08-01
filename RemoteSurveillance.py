@@ -1,4 +1,6 @@
+import argparse
 import json
+import os
 import threading
 import cv2
 import time
@@ -7,19 +9,22 @@ import datetime
 import supervision as sv
 from pathlib import Path
 from ultralytics import YOLO
+import numpy as np
 
 
 def getPicture(input):
+    ip, port, rtsp, inference_path, img_inference, video_inference, results_visualization, wait_interval, \
+        conf_threshold, device = opt.ip, opt.port, opt.rtsp, opt.inference_path, opt.img_inference, \
+        opt.video_inference, opt.results_visualization, opt.wait_interval, opt.conf_threshold, opt.device
     model = YOLO('surveillance.pt')
 
     # Create a VideoCapture object
     cap = cv2.VideoCapture(input)
 
     # to save the video
-    # writer= cv2.VideoWriter('suspicious_civilian.mp4', 
-    #                         cv2.VideoWriter_fourcc(*'DIVX'), 
-    #                         7, 
-    #                         (1280, 720))
+    writer = cv2.VideoWriter(os.path.join(inference_path,'surveillance.mp4'), 
+                    cv2.VideoWriter_fourcc(*'mp4v'), 
+                    int(cap.get(5)), (int(cap.get(3)), int(cap.get(4))))
     
     a=cap.get(cv2.CAP_PROP_BUFFERSIZE)
     cap.set(cv2.CAP_PROP_BUFFERSIZE,3)
@@ -51,31 +56,39 @@ def getPicture(input):
         current_time = time.time()
 
         # Check if at least 0.5 seconds have passed since the last inference
-        if current_time - prev_inference_time >= 0.1:
+        if current_time - prev_inference_time >= wait_interval:
             # Run YOLOv8 inference
-            results = model(frame, verbose=False, agnostic_nms=True, conf=0.35)
-            detections = sv.Detections.from_yolov8(results[0])
-            labels = [
-            f"{model.model.names[class_id]} {confidence:0.2f}"
-            for _, confidence, class_id, _ in detections
-            ]
-            # print(labels)
+            results = model(frame, verbose=False, agnostic_nms=True, conf=conf_threshold, device=device)
+            result = results[0]
+            detections = sv.Detections.from_yolov8(result)
+            # detections = list_of_results(results[0])
+            
+            # time stamp for json response
+            time_stamp = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
+            time_stamp_name = datetime.datetime.now().strftime("%m-%d-%Y_%Hh%Mm%Ss")
 
-            annotated_frame = box_annotator.annotate(
-            scene=frame, 
-            detections=detections, 
-            labels=labels
+            try:
+                labels = [
+                f"{model.model.names[class_id]} {confidence:0.2f}"
+                for _, _, confidence, class_id, _ 
+                in detections
+                ]
+                # print(detections)
+                print(f"{labels}\n{time_stamp}")
+
+                annotated_frame = box_annotator.annotate(
+                scene=frame, 
+                detections=detections, 
+                labels=labels
             )
+            except Exception as e:
+                print(e)
+                continue
             
             p = Path('dummy_path')
             im = frame
             im0 = frame.copy()
             label = model.predictor.custom_results(0, results, (p, im, im0))
-
-            # json response
-            time_stamp = datetime.datetime.now().strftime("%m/%d/%Y %H:%M:%S")
-            time_stamp_name = datetime.datetime.now().strftime("%m-%d-%Y_%Hh%Mm%Ss")
-            data = ['Civilian 0.79', 'Soldier 0.55', 'Civilian 0.54', 'Soldier 0.36']
 
             # Label format for json response
             civilians = []
@@ -90,13 +103,18 @@ def getPicture(input):
                 response = {"command": "security", "action": "trigger", 
                             "tags":f"event=civilian&civilians={civilians}&soldiers={soldiers}",
                             "Date-Time": time_stamp}
-                cv2.imwrite(f'civilian_soldier_{time_stamp_name}.jpg', annotated_frame)
+                if video_inference:
+                    writer.write(annotated_frame)
+                if img_inference:
+                    cv2.imwrite(f'civilian_soldier_{time_stamp_name}.jpg', annotated_frame)
             elif "Civilian" in label:
                 response = {"command": "security", "action": "trigger", 
                             "tags":f"event=civilian&civilians={civilians}",
                             "Date-Time": time_stamp}
-                # writer.write(annotated_frame)
-                cv2.imwrite(f'civilian_{time_stamp_name}.jpg', annotated_frame)
+                if video_inference:
+                    writer.write(annotated_frame)
+                if img_inference:
+                    cv2.imwrite(os.path.join(inference_path, f'civilian_{time_stamp_name}.jpg'), annotated_frame)
                 # cv2.imshow("Inference", frame)
             elif "Soldier" in label:
                 response = {"command": "security", "action": "trigger", 
@@ -104,8 +122,8 @@ def getPicture(input):
                             "Date-Time": time_stamp}
                 
             # Send the JSON response
-            # if response:
-            #     send_json_response(ip, port, response)
+            """if response:
+                send_json_response(ip, port, response)"""
 
             # Json File testing
             if response:
@@ -114,13 +132,15 @@ def getPicture(input):
                     f.write(response_string+"\n")
 
             # Visualize results on the frame
-            cv2.imshow("Inference", annotated_frame)
+            if results_visualization:
+                cv2.imshow("Inference", annotated_frame)
 
             # Update the previous inference time
             prev_inference_time = current_time
         else:
             # Display the unannotated frame
-            cv2.imshow("Inference", frame)
+            if results_visualization:
+                cv2.imshow("Inference", frame)
 
         # Break the loop if 'q' is pressed
         if cv2.waitKey(1) & 0xFF == ord("q"):
@@ -128,8 +148,13 @@ def getPicture(input):
 
     # Release the video capture object and close the display window
     cap.release()
+    # writer.release()
     cv2.destroyAllWindows()
 
+def list_of_results(results):
+    global confidence
+    global class_id
+    return results.boxes.conf.cpu().numpy(), results.boxes.cls.cpu().numpy().astype(int)
 
 def resize_frame(frame, width, height):
     # Resize the frame to the specified dimensions
@@ -159,11 +184,19 @@ def send_json_response(ip, port, response):
 
 
 if __name__ == "__main__":
-    ip = "10.0.1.20"
-    port = 2101
-    rtsp = ""
-    t1 = threading.Thread(target=getPicture, args=(0,))
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--ip', type=str, default="10.0.1.20", help='ip address for json response')
+    parser.add_argument('--port', type=int, default=2101, help='source in url or video file path')
+    parser.add_argument('--rtsp', type=str, default=0, help='rtsp address or 0 for webcam input')
+    parser.add_argument('--inference-path', type=str, default="./", help='path location to save all the inferences')
+    parser.add_argument('--img-inference', type=bool, default=False, help='Save image inferences on given inference path')
+    parser.add_argument('--video-inference', type=bool, default=False, help='Save video on inferences path')
+    parser.add_argument('--results-visualization', type=bool, default=False, help='display processed frames with bounding box')
+    parser.add_argument('--wait-interval', type=float, default=0.1, help="buffer period for frames")
+    parser.add_argument('--conf-threshold', type=float, default=0.35, help="confidence threshold for object detection")
+    parser.add_argument('--device', default=0, help="0/1/2/3 for GPU, 'cpu' for CPU")
+    opt = parser.parse_args()
+    t1 = threading.Thread(target=getPicture, args=(opt.rtsp,))
     # t2 = threading.Thread(target=getPicture, args=(rtsp1,))
-
     t1.start()
     # t2.start()
