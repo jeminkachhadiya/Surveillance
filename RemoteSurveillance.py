@@ -22,9 +22,10 @@ def getPicture(input):
     cap = cv2.VideoCapture(input)
 
     # to save the video
-    writer = cv2.VideoWriter(os.path.join(inference_path,'surveillance.mp4'), 
-                    cv2.VideoWriter_fourcc(*'mp4v'), 
-                    int(cap.get(5)), (int(cap.get(3)), int(cap.get(4))))
+    if video_inference:
+        writer = cv2.VideoWriter(os.path.join(inference_path,'surveillance.mp4'), 
+                        cv2.VideoWriter_fourcc(*'mp4v'), 
+                        int(cap.get(5)), (int(cap.get(3)), int(cap.get(4))))
     
     a=cap.get(cv2.CAP_PROP_BUFFERSIZE)
     cap.set(cv2.CAP_PROP_BUFFERSIZE,3)
@@ -122,14 +123,14 @@ def getPicture(input):
                             "Date-Time": time_stamp}
                 
             # Send the JSON response
-            """if response:
-                send_json_response(ip, port, response)"""
+            if response:
+                send_json_response(ip, port, response)
 
             # Json File testing
-            if response:
-                response_string = json.dumps(response)
-                with open("test.json", "a") as f:
-                    f.write(response_string+"\n")
+            # if response:
+            #     response_string = json.dumps(response)
+            #     with open("test.json", "a") as f:
+            #         f.write(response_string+"\n")
 
             # Visualize results on the frame
             if display:
@@ -148,7 +149,8 @@ def getPicture(input):
 
     # Release the video capture object and close the display window
     cap.release()
-    # writer.release()
+    if video_inference:
+        writer.release()
     cv2.destroyAllWindows()
 
 def list_of_results(results):
@@ -192,7 +194,7 @@ if __name__ == "__main__":
     parser.add_argument('--img-inference', type=bool, default=False, help='Save image inferences on given inference path')
     parser.add_argument('--video-inference', type=bool, default=False, help='Save video on inferences path')
     parser.add_argument('--display', type=bool, default=False, help='display processed frames with bounding box')
-    parser.add_argument('--wait-interval', type=float, default=0.1, help="buffer period for frames")
+    parser.add_argument('--wait-interval', type=float, default=0.5, help="buffer period for frames")
     parser.add_argument('--conf-threshold', type=float, default=0.35, help="confidence threshold for object detection")
     parser.add_argument('--device', default=0, help="0/1/2/3 for GPU, 'cpu' for CPU")
     opt = parser.parse_args()
